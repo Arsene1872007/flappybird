@@ -2,6 +2,7 @@ import pygame
 import sys
 import random
 
+pygame.mixer.pre_init(44100, -16, 2, 256)  # small buffer = low audio latency (~6 ms)
 pygame.init()
 
 # Window size and basic setup
@@ -17,18 +18,20 @@ GREEN      = (83,  254, 76)
 DARK_GREEN = (52,  157, 47)
 YELLOW     = (255, 222, 89)
 WHITE      = (255, 255, 255)
+GOLD       = (255, 215, 0)
 
 # ── Physics constants ─────────────────────────────────────────────────────────
-GRAVITY       = 0.5   # acceleration added to vertical speed every frame
-FLAP_FORCE    = -9    # upward burst when the player taps
-PIPE_SPEED    = 3     # pixels the pipes move left per frame
+GRAVITY       = 0.25  # acceleration added to vertical speed every frame
+FLAP_FORCE    = -5   # upward burst when the player taps
+PIPE_SPEED    = 2     # pixels the pipes move left per frame
 PIPE_GAP      = 160   # vertical gap the bird must fly through
 PIPE_INTERVAL = 1500  # milliseconds between each new pipe pair
 GROUND_Y      = HEIGHT - 80  # y-coordinate where the ground starts
 
 # Fonts for score and messages
 font_big   = pygame.font.SysFont("Arial", 48, bold=True)
-font_small = pygame.font.SysFont("Arial", 24)
+font_med   = pygame.font.SysFont("Arial", 30, bold=True)
+font_small = pygame.font.SysFont("Arial", 22)
 
 
 # ── Image loader ──────────────────────────────────────────────────────────────
@@ -42,26 +45,66 @@ def load(path, size=None):
     except Exception:
         return None
 
+# TODO: bird image — swap filename to change the bird sprite
+BIRD_IMG   = load("img/bird1.png",  size=(50, 38))
 
-# ─────────────────────────────────────────────────────────────────────────────
-# TODO: replace each filename string below with your own image file
-# Drop the image files in the same folder as this script, then update the name.
-# Until you do, the game draws plain coloured shapes instead.
-# ─────────────────────────────────────────────────────────────────────────────
+# TODO: background image — swap filename to change the sky/scenery
+BG_IMG     = load("img/bg.png",     size=(WIDTH, HEIGHT))
 
-# TODO: bird image — 50×38 px works well (e.g. "bird.png")
-BIRD_IMG   = load("bird.png",       size=(50, 38))
+# TODO: pipe/obstacle image — drawn top & bottom, scaled to fit
+PIPE_IMG   = load("img/pipe.png",   size=(70, 400))
 
-# TODO: background image — should be 400×600 px (e.g. "background.png")
-BG_IMG     = load("background.png", size=(WIDTH, HEIGHT))
+# TODO: ground/floor strip image — swap filename to change the floor
+GROUND_IMG = load("img/ground.png", size=(WIDTH, 80))
 
-# TODO: pipe/obstacle image — drawn top & bottom, scaled to fit (e.g. "pipe.png")
-PIPE_IMG   = load("pipe.png",       size=(70, 400))
 
-# TODO: ground/floor strip image — should be 400×80 px (e.g. "ground.png")
-GROUND_IMG = load("ground.png",     size=(WIDTH, 80))
+# ── Sound loader ──────────────────────────────────────────────────────────────
+# Returns None (instead of crashing) if the file isn't supported or missing
+def load_snd(path):
+    try:
+        return pygame.mixer.Sound(path)
+    except Exception:
+        return None
 
-# ─────────────────────────────────────────────────────────────────────────────
+def play(snd):
+    """Play a sound effect if it loaded successfully."""
+    if snd:
+        snd.play()
+
+# TODO: flap sound — plays every time the player presses Space or clicks
+SND_FLAP    = load_snd("sound/flapping.wav")
+
+# TODO: lose sound — plays the moment the bird hits a pipe or the ground
+SND_LOSE    = load_snd("sound/losing.wav")
+
+# TODO: record sound — plays every time the score hits a new multiple of 10
+SND_RECORD  = load_snd("sound/record.wav")
+
+# TODO: welcome sound — plays once on the waiting screen before game starts
+SND_WELCOME = load_snd("sound/welcome.wav")
+
+# TODO: passing voices — alternate between these two on each pipe the player clears
+#       1st pass → voicears,  2nd pass → voicebach,  3rd → voicears, …
+SND_PASS = [
+    load_snd("sound/voicears.wav"),
+    load_snd("sound/voicebach.wav"),
+]
+
+
+# ── Best score (saved to disk so it survives game restarts) ───────────────────
+SCORE_FILE = "best_score.txt"
+
+def load_best():
+    try:
+        return int(open(SCORE_FILE).read().strip())
+    except Exception:
+        return 0
+
+def save_best(score):
+    try:
+        open(SCORE_FILE, "w").write(str(score))
+    except Exception:
+        pass
 
 
 # ── Bird ──────────────────────────────────────────────────────────────────────
@@ -74,8 +117,8 @@ class Bird:
         self.vy = 0            # vertical velocity (positive = falling)
 
     def flap(self):
-        # reset vertical speed to a negative (upward) value
-        self.vy = FLAP_FORCE
+        self.vy = FLAP_FORCE   # snap velocity upward
+        play(SND_FLAP)         # flap sound on every tap
 
     def update(self):
         # gravity pulls the bird down every frame
@@ -105,7 +148,7 @@ class Pipe:
     def __init__(self):
         # pick a random vertical position for the gap
         gap_y            = random.randint(120, GROUND_Y - PIPE_GAP - 60)
-        self.top_rect    = pygame.Rect(WIDTH, 0,              self.W, gap_y)
+        self.top_rect    = pygame.Rect(WIDTH, 0,               self.W, gap_y)
         self.bottom_rect = pygame.Rect(WIDTH, gap_y + PIPE_GAP, self.W, HEIGHT)
         self.passed      = False  # flips to True once the bird clears this pipe
 
@@ -119,11 +162,11 @@ class Pipe:
             # top pipe: flip the image upside-down then scale to the rect height
             flipped    = pygame.transform.flip(PIPE_IMG, False, True)
             top_scaled = pygame.transform.scale(flipped, (self.W, self.top_rect.h))
-            surface.blit(top_scaled, self.top_rect.topleft)  # TODO: image drawn here — set PIPE_IMG above
+            surface.blit(top_scaled, self.top_rect.topleft)      # TODO: image drawn here — set PIPE_IMG above
 
             # bottom pipe: right-side up, scaled to the rect height
             bot_scaled = pygame.transform.scale(PIPE_IMG, (self.W, self.bottom_rect.h))
-            surface.blit(bot_scaled, self.bottom_rect.topleft)  # TODO: same PIPE_IMG, bottom
+            surface.blit(bot_scaled, self.bottom_rect.topleft)   # TODO: same PIPE_IMG, bottom
         else:
             # fallback: green rectangles
             pygame.draw.rect(surface, GREEN,      self.top_rect)
@@ -139,9 +182,9 @@ class Pipe:
 # ── Background & ground drawing ───────────────────────────────────────────────
 def draw_background(surface):
     if BG_IMG:
-        surface.blit(BG_IMG, (0, 0))  # TODO: image drawn here — set BG_IMG above
+        surface.blit(BG_IMG, (0, 0))           # TODO: image drawn here — set BG_IMG above
     else:
-        surface.fill(SKY_BLUE)  # fallback: solid sky colour
+        surface.fill(SKY_BLUE)                 # fallback: solid sky colour
 
 
 def draw_ground(surface):
@@ -155,16 +198,24 @@ def draw_ground(surface):
 
 # ── Main game loop ────────────────────────────────────────────────────────────
 def main():
-    bird      = Bird()
-    pipes     = []
-    score     = 0
-    alive     = True
-    started   = False           # waits for first tap before physics start
-    last_pipe = pygame.time.get_ticks()
+    bird           = Bird()
+    pipes          = []
+    score          = 0
+    best           = load_best()   # all-time best loaded from disk
+    alive          = True
+    started        = False         # waits for first tap before physics start
+    last_pipe      = pygame.time.get_ticks()
+    pass_snd_idx   = 0             # alternates 0/1 to switch between the two voices
+    welcome_played = False
 
     while True:
-        clock.tick(FPS)         # keep the loop running at exactly 60 fps
+        clock.tick(FPS)            # keep the loop running at exactly 60 fps
         now = pygame.time.get_ticks()
+
+        # play welcome sound exactly once while on the waiting screen
+        if not started and not welcome_played:
+            play(SND_WELCOME)
+            welcome_played = True
 
         # ── Input ─────────────────────────────────────────────────────────────
         for event in pygame.event.get():
@@ -177,7 +228,9 @@ def main():
                     main(); return   # any key after death restarts the game
                 if not started:
                     started = True   # first tap kicks off physics
-                bird.flap()
+                    if SND_WELCOME:
+                        SND_WELCOME.stop()   # cut welcome sound the moment game begins
+                bird.flap()          # flap sound is played inside Bird.flap()
 
         # ── Update (only while the bird is alive and the game has started) ────
         if started and alive:
@@ -189,11 +242,20 @@ def main():
                 last_pipe = now
 
             for p in pipes:
-                p.update()
-                # award a point when the bird passes the right edge of a pipe
-                if not p.passed and p.top_rect.right < bird.x:
-                    p.passed = True
-                    score += 1
+                # score check runs BEFORE the pipe moves — tests the position the player sees this frame
+                if not p.passed and p.top_rect.centerx <= bird.x:
+                    p.passed     = True
+                    score       += 1
+
+                    # alternate between voicears and voicebach on each pass
+                    play(SND_PASS[pass_snd_idx])
+                    pass_snd_idx = 1 - pass_snd_idx   # flips 0→1→0→1…
+
+                    # record fanfare every 10 points (10, 20, 30 …)
+                    if score % 10 == 0:
+                        play(SND_RECORD)
+
+                p.update()  # move the pipe AFTER scoring so the trigger frame matches what's on screen
 
             # remove pipes that have scrolled off the left edge
             pipes = [p for p in pipes if not p.off_screen()]
@@ -206,6 +268,13 @@ def main():
                 if bird_r.colliderect(p.top_rect) or bird_r.colliderect(p.bottom_rect):
                     alive = False
 
+            # this block runs exactly once — the frame alive flips to False
+            if not alive:
+                play(SND_LOSE)         # losing sound on death
+                if score > best:
+                    best = score
+                    save_best(best)    # write new best to disk immediately
+
         # ── Draw (every frame, even when paused or dead) ──────────────────────
         draw_background(screen)
         for p in pipes:
@@ -213,9 +282,13 @@ def main():
         draw_ground(screen)
         bird.draw(screen)
 
-        # score counter at the top centre of the screen
+        # current score — top centre
         score_surf = font_big.render(str(score), True, WHITE)
-        screen.blit(score_surf, (WIDTH // 2 - score_surf.get_width() // 2, 40))
+        screen.blit(score_surf, (WIDTH // 2 - score_surf.get_width() // 2, 30))
+
+        # best score shown just below the current score at all times
+        best_surf = font_small.render(f"Best: {best}", True, WHITE)
+        screen.blit(best_surf, (WIDTH // 2 - best_surf.get_width() // 2, 88))
 
         # "tap to start" prompt shown before the first flap
         if not started:
@@ -224,10 +297,21 @@ def main():
 
         # game-over overlay
         if not alive:
-            over  = font_big.render("Game Over",              True, WHITE)
+            # semi-transparent dark band so text is readable over any background
+            overlay = pygame.Surface((WIDTH, 210), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 150))
+            screen.blit(overlay, (0, HEIGHT // 2 - 85))
+
+            over  = font_big.render("Game Over",                  True, WHITE)
+            sc    = font_med.render(f"Score: {score}",            True, WHITE)
+            # highlight best in gold when the player just set a new record
+            bst   = font_med.render(f"Best:  {best}",             True, GOLD if score == best else WHITE)
             retry = font_small.render("Press any key to restart", True, WHITE)
-            screen.blit(over,  (WIDTH // 2 - over.get_width()  // 2, HEIGHT // 2 - 30))
-            screen.blit(retry, (WIDTH // 2 - retry.get_width() // 2, HEIGHT // 2 + 30))
+
+            screen.blit(over,  (WIDTH // 2 - over.get_width()  // 2, HEIGHT // 2 - 70))
+            screen.blit(sc,    (WIDTH // 2 - sc.get_width()    // 2, HEIGHT // 2 - 20))
+            screen.blit(bst,   (WIDTH // 2 - bst.get_width()   // 2, HEIGHT // 2 + 22))
+            screen.blit(retry, (WIDTH // 2 - retry.get_width() // 2, HEIGHT // 2 + 65))
 
         pygame.display.flip()  # push the finished frame to the screen
 
