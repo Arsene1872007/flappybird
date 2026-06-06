@@ -72,22 +72,22 @@ def play(snd):
         snd.play()
 
 # TODO: flap sound — plays every time the player presses Space or clicks
-SND_FLAP    = load_snd("sound/flapping.m4a")
+SND_FLAP    = load_snd("sound/flapping.wav")
 
 # TODO: lose sound — plays the moment the bird hits a pipe or the ground
-SND_LOSE    = load_snd("sound/losing.m4a")
+SND_LOSE    = load_snd("sound/losing.wav")
 
 # TODO: record sound — plays every time the score hits a new multiple of 10
-SND_RECORD  = load_snd("sound/record.m4a")
+SND_RECORD  = load_snd("sound/record.wav")
 
 # TODO: welcome sound — plays once on the waiting screen before game starts
-SND_WELCOME = load_snd("sound/welcome.m4a")
+SND_WELCOME = load_snd("sound/welcome.wav")
 
 # TODO: passing voices — alternate between these two on each pipe the player clears
 #       1st pass → voicears,  2nd pass → voicebach,  3rd → voicears, …
 SND_PASS = [
-    load_snd("sound/voicears.m4a"),
-    load_snd("sound/voicebach.m4a"),
+    load_snd("sound/voicears.wav"),
+    load_snd("sound/voicebach.wav"),
 ]
 
 
@@ -244,7 +244,7 @@ def main():
             for p in pipes:
                 p.update()
                 # award a point when the bird passes the right edge of a pipe
-                if not p.passed and p.top_rect.right < bird.x:
+                if not p.passed and p.top_rect.centerx < bird.x:
                     p.passed     = True
                     score       += 1
 
