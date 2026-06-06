@@ -2,8 +2,8 @@ import pygame
 import sys
 import random
 
+pygame.mixer.pre_init(44100, -16, 2, 256)  # small buffer = low audio latency (~6 ms)
 pygame.init()
-pygame.mixer.init()  # must init mixer before loading any sounds
 
 # Window size and basic setup
 WIDTH, HEIGHT = 400, 600
@@ -242,9 +242,8 @@ def main():
                 last_pipe = now
 
             for p in pipes:
-                p.update()
-                # award a point when the bird passes the right edge of a pipe
-                if not p.passed and p.top_rect.centerx < bird.x:
+                # score check runs BEFORE the pipe moves — tests the position the player sees this frame
+                if not p.passed and p.top_rect.centerx <= bird.x:
                     p.passed     = True
                     score       += 1
 
@@ -255,6 +254,8 @@ def main():
                     # record fanfare every 10 points (10, 20, 30 …)
                     if score % 10 == 0:
                         play(SND_RECORD)
+
+                p.update()  # move the pipe AFTER scoring so the trigger frame matches what's on screen
 
             # remove pipes that have scrolled off the left edge
             pipes = [p for p in pipes if not p.off_screen()]
