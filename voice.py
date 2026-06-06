@@ -42,7 +42,7 @@ bird_x = 100
 gravity = 5
 
 # Set a threshold so background noise doesn't move the bird
-VOLUME_THRESHOLD = 15.0 
+VOLUME_THRESHOLD = 10.0 
 
 running = True
 while running:
@@ -58,7 +58,7 @@ while running:
     if current_loudness > VOLUME_THRESHOLD:
         # The louder you yell, the higher the bird flies.
         # (Remember in Pygame, subtracting from Y moves the object UP)
-        jump_strength = current_loudness * 0.5 
+        jump_strength = current_loudness * 0.5
         bird_y -= jump_strength
 
     # Keep bird on screen (Floor and Ceiling collision)
