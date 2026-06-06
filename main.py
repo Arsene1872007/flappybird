@@ -40,9 +40,9 @@ PIPE_INTERVAL = 1500
 GROUND_Y      = HEIGHT - 80
 
 # Voice-mode constants
-VOICE_THRESHOLD = 7.5    # RMS level below which mic is treated as silence (halved — no shouting needed)
-VOICE_SCALE     = 0.56   # loudness → upward velocity added each frame (doubled to match lower input)
-VOICE_MAX_VY    = -9     # maximum upward velocity in voice mode
+VOICE_THRESHOLD = 15.0   # RMS level below which mic is treated as silence
+VOICE_SCALE     = 0.30   # loudness → upward velocity added each frame
+VOICE_MAX_VY    = -7     # maximum upward velocity in voice mode
 
 font_big   = pygame.font.SysFont("Arial", 48, bold=True)
 font_med   = pygame.font.SysFont("Arial", 30, bold=True)
@@ -61,10 +61,14 @@ def load(path, size=None):
         return None
 
 # TODO: swap filenames below to change art
-BIRD_IMG   = load("img/bird1.png",  size=(50, 38))
-BG_IMG     = load("img/bg.png",     size=(WIDTH, HEIGHT))
-PIPE_IMG   = load("img/pipe.png",   size=(70, 400))
-GROUND_IMG = load("img/ground.png", size=(WIDTH, 80))
+BIRD_IMG     = load("img/bird1.png",   size=(50, 38))
+BG_IMG       = load("img/bg.png",      size=(WIDTH, HEIGHT))
+PIPE_IMG     = load("img/pipe.png",    size=(70, 400))
+GROUND_IMG   = load("img/ground.png",  size=(WIDTH, 80))
+
+# TODO: drop title.png and gameover.png into img/ — loaded at natural size, centred automatically
+TITLE_IMG    = load("img/title.png")    # shown on the mode-select screen (upper half)
+GAMEOVER_IMG = load("img/gameover.png") # shown centred when the player dies
 
 
 # ── Sound loader ──────────────────────────────────────────────────────────────
@@ -265,12 +269,18 @@ def mode_select():
         draw_background(screen)
         draw_ground(screen)
 
-        # title
-        title = font_big.render("FLAPPY BIRD", True, WHITE)
-        screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 75))
+        # title image — upper half of the screen; falls back to text if file not found
+        if TITLE_IMG:
+            tx = WIDTH // 2 - TITLE_IMG.get_width() // 2
+            screen.blit(TITLE_IMG, (tx, 20))
+            sub_y = 20 + TITLE_IMG.get_height() + 12
+        else:
+            title = font_big.render("FLAPPY BIRD", True, WHITE)
+            screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 75))
+            sub_y = 148
 
         sub = font_small.render("Choose your control:", True, WHITE)
-        screen.blit(sub, (WIDTH // 2 - sub.get_width() // 2, 148))
+        screen.blit(sub, (WIDTH // 2 - sub.get_width() // 2, sub_y))
 
         # option 1 — Normal
         b1 = pygame.Rect(WIDTH // 2 - 145, 195, 290, 75)
@@ -434,17 +444,26 @@ def game_loop(mode):
             overlay.fill((0, 0, 0, 155))
             screen.blit(overlay, (0, HEIGHT // 2 - 100))
 
-            over = font_big.render("Game Over",                     True, WHITE)
-            sc   = font_med.render(f"Score: {score}",               True, WHITE)
-            bst  = font_med.render(f"Best:  {best}",                True, GOLD if score == best else WHITE)
-            r1   = font_small.render("[1] Normal   [2] Voice",      True, WHITE)
-            r2   = font_tiny.render("(any other key = same mode)",   True, WHITE)
+            # game-over image centred on screen (falls back to text if file not found)
+            if GAMEOVER_IMG:
+                gx = WIDTH // 2 - GAMEOVER_IMG.get_width() // 2
+                gy = HEIGHT // 2 - GAMEOVER_IMG.get_height() // 2 - 60
+                screen.blit(GAMEOVER_IMG, (gx, gy))
+                score_top = gy + GAMEOVER_IMG.get_height() + 8
+            else:
+                over = font_big.render("Game Over", True, WHITE)
+                screen.blit(over, (WIDTH // 2 - over.get_width() // 2, HEIGHT // 2 - 92))
+                score_top = HEIGHT // 2 - 42
 
-            screen.blit(over, (WIDTH // 2 - over.get_width() // 2, HEIGHT // 2 - 92))
-            screen.blit(sc,   (WIDTH // 2 - sc.get_width()   // 2, HEIGHT // 2 - 42))
-            screen.blit(bst,  (WIDTH // 2 - bst.get_width()  // 2, HEIGHT // 2 +  2))
-            screen.blit(r1,   (WIDTH // 2 - r1.get_width()   // 2, HEIGHT // 2 + 48))
-            screen.blit(r2,   (WIDTH // 2 - r2.get_width()   // 2, HEIGHT // 2 + 78))
+            sc  = font_med.render(f"Score: {score}",              True, WHITE)
+            bst = font_med.render(f"Best:  {best}",               True, GOLD if score == best else WHITE)
+            r1  = font_small.render("[1] Normal   [2] Voice",     True, WHITE)
+            r2  = font_tiny.render("(any other key = same mode)", True, WHITE)
+
+            screen.blit(sc,  (WIDTH // 2 - sc.get_width()  // 2, score_top))
+            screen.blit(bst, (WIDTH // 2 - bst.get_width() // 2, score_top + 38))
+            screen.blit(r1,  (WIDTH // 2 - r1.get_width()  // 2, score_top + 82))
+            screen.blit(r2,  (WIDTH // 2 - r2.get_width()  // 2, score_top + 112))
 
         pygame.display.flip()
 
