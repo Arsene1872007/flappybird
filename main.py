@@ -41,7 +41,7 @@ GROUND_Y      = HEIGHT - 80
 
 # Voice-mode constants
 VOICE_THRESHOLD = 15.0   # RMS level below which mic is treated as silence
-VOICE_SCALE     = 0.30   # loudness → upward velocity added each frame
+VOICE_SCALE     = 0.10   # loudness → upward velocity added each frame
 VOICE_MAX_VY    = -7     # maximum upward velocity in voice mode
 
 font_big   = pygame.font.SysFont("Arial", 48, bold=True)
